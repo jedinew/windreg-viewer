@@ -88,11 +88,25 @@ function fitToAoi() {
 
 // VWorld WFS URL
 function wfsUrl(key, typename, bbox) {
+  // bbox: [minX, minY, maxX, maxY]
+  const [minX, minY, maxX, maxY] = bbox;
+  const srs = 'EPSG:4326';
+  // Per VWorld WFS 1.1.0: when srsName=EPSG:4326, bbox order must be (ymin,xmin,ymax,xmax)
+  const bboxStr = srs === 'EPSG:4326'
+    ? [minY, minX, maxY, maxX].join(',')
+    : [minX, minY, maxX, maxY].join(',');
+
   const base = 'https://api.vworld.kr/req/wfs';
   const params = new URLSearchParams({
     service: 'WFS', request: 'GetFeature', version: '1.1.0',
-    key, output: 'application/json', srsName: 'EPSG:4326',
-    typenames: typename, bbox: bbox.join(',') + ',EPSG:4326'
+    key,
+    domain: location.hostname,
+    output: 'application/json',
+    srsName: srs,
+    typename: typename,
+    // Do NOT append CRS in bbox string; VWorld uses srsName separately.
+    bbox: bboxStr,
+    exceptions: 'application/json'
   });
   return base + '?' + params.toString();
 }
@@ -103,9 +117,18 @@ async function fetchLayerData(layerKey, aoi) {
   const url = wfsUrl(state.key, typename, bbox);
 
   const res = await fetch(url);
+  const ctype = res.headers.get('content-type') || '';
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
-    throw new Error(`WFS 요청 실패 (${res.status}) ${txt.slice(0, 160)}`);
+    throw new Error(`WFS 요청 실패 (${res.status}) ${txt.slice(0, 200)}`);
+  }
+  // Guard: some servers return XML error with 200 OK
+  if (!ctype.includes('application/json')) {
+    const txt = await res.text().catch(() => '');
+    // Try to extract message from XML
+    const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
+    const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
+    throw new Error(`WFS 응답이 JSON이 아닙니다. (아마도 Key/도메인/파라미터 문제)\n${msg}`);
   }
   const fc = await res.json();
 
