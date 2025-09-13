@@ -14,7 +14,10 @@ const CONFIG = {
 
 const state = {
   key: '',
-  fetched: {} // layerKey -> boolean
+  domain: '',
+  fetched: {}, // layerKey -> boolean
+  capabilities: null, // cached capabilities text
+  availableTypenames: null // Set of available typenames parsed from capabilities
 };
 
 // Helpers
@@ -100,13 +103,15 @@ function wfsUrl(key, typename, bbox) {
   const params = new URLSearchParams({
     service: 'WFS', request: 'GetFeature', version: '1.1.0',
     key,
-    domain: location.hostname,
+    domain: state.domain || location.hostname,
     output: 'application/json',
     srsName: srs,
     typename: typename,
     // Do NOT append CRS in bbox string; VWorld uses srsName separately.
     bbox: bboxStr,
-    exceptions: 'application/json'
+    exceptions: 'application/json',
+    // Limit features to reduce server load and avoid SYSTEM_ERROR
+    maxfeatures: '500'
   });
   return base + '?' + params.toString();
 }
@@ -116,7 +121,13 @@ async function fetchLayerData(layerKey, aoi) {
   const bbox = turf.bbox(aoi);
   const url = wfsUrl(state.key, typename, bbox);
 
-  const res = await fetch(url);
+  // Ensure typename exists by checking WFS GetCapabilities once
+  await ensureCapabilities();
+  if (state.availableTypenames && !state.availableTypenames.has(typename)) {
+    throw new Error(`지원되지 않는 레이어명입니다: ${typename}\n(GetCapabilities에 존재하지 않습니다)`);
+  }
+
+  const res = await fetchWithRetry(url, { headers: { 'Accept': 'application/json' } }, 2, 600);
   const ctype = res.headers.get('content-type') || '';
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
@@ -128,6 +139,7 @@ async function fetchLayerData(layerKey, aoi) {
     // Try to extract message from XML
     const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
     const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
+    console.warn('WFS non-JSON response.', { url, preview: txt.slice(0, 1000) });
     throw new Error(`WFS 응답이 JSON이 아닙니다. (아마도 Key/도메인/파라미터 문제)\n${msg}`);
   }
   const fc = await res.json();
@@ -238,7 +250,9 @@ $('btn-clear').addEventListener('click', () => {
 // Save key handler
 function saveKey() {
   state.key = $('key').value.trim();
+  state.domain = ($('domain')?.value || '').trim();
   try { localStorage.setItem('vworld-key', state.key); } catch (_) {}
+  try { if (state.domain) localStorage.setItem('vworld-domain', state.domain); } catch (_) {}
   alert('VWorld Key가 저장되었습니다.');
 }
 
@@ -256,6 +270,16 @@ if (keyInput) {
   keyInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveKey();
   });
+}
+
+// Load saved domain
+const domainInput = $('domain');
+if (domainInput) {
+  try {
+    const saved = localStorage.getItem('vworld-domain');
+    if (saved) domainInput.value = saved;
+    else if (!domainInput.value) domainInput.value = 'wind.rkswork.com';
+  } catch (_) {}
 }
 
 // Toggle listeners: show/hide, and fetch on-demand when turning ON if data not fetched yet
@@ -300,3 +324,102 @@ map.on('draw.delete', () => {
   if (map.getLayer('aoi-line')) map.removeLayer('aoi-line');
   if (map.getSource('aoi')) map.removeSource('aoi');
 });
+
+// --- Capabilities helpers ---
+async function ensureCapabilities() {
+  if (state.availableTypenames) return;
+  const url = new URL('https://api.vworld.kr/req/wfs');
+  url.search = new URLSearchParams({
+    service: 'WFS', request: 'GetCapabilities', version: '1.1.0',
+    key: state.key || $('key').value.trim(),
+    domain: location.hostname
+  }).toString();
+  let text = '';
+  try {
+    const res = await fetch(url.toString());
+    text = await res.text();
+  } catch (e) {
+    // ignore network error, keep null
+  }
+  state.capabilities = text;
+  state.availableTypenames = parseTypenamesFromCapabilities(text);
+}
+
+function parseTypenamesFromCapabilities(xmlText) {
+  if (!xmlText) return null;
+  const set = new Set();
+  try {
+    // crude extraction: look for <Name>typename</Name>
+    const re = /<Name>\s*([^<\s]+)\s*<\/Name>/g; let m;
+    while ((m = re.exec(xmlText))) {
+      const name = m[1];
+      if (name && !name.includes(':')) set.add(name.trim());
+    }
+  } catch (_) {}
+  return set;
+}
+
+// --- Networking helpers ---
+async function fetchWithRetry(input, init, retries = 2, delayMs = 600) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(input, init);
+      if (res.ok) return res;
+      if (i === retries) return res;
+    } catch (e) {
+      lastErr = e;
+      if (i === retries) throw e;
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  if (lastErr) throw lastErr;
+  return fetch(input, init);
+}
+
+// --- Test helpers & button ---
+function makeSmallAoiAroundCenter() {
+  const c = map.getCenter();
+  const dx = 0.02, dy = 0.02; // ~small box (~2km) depending on latitude
+  const bbox = [c.lng - dx, c.lat - dy, c.lng + dx, c.lat + dy];
+  return turf.bboxPolygon(bbox);
+}
+
+async function runSmallTest() {
+  // Ensure key/domain
+  state.key = $('key').value.trim();
+  state.domain = ($('domain')?.value || '').trim();
+  if (!state.key) return alert('VWorld Key를 입력해주세요.');
+  if (!state.domain) return alert('VWorld Domain을 입력해주세요.');
+
+  // Build tiny AOI if none
+  let aoi = getAoiFeature();
+  if (!aoi) {
+    aoi = makeSmallAoiAroundCenter();
+    // Put into Draw for visibility
+    try { Draw.deleteAll(); } catch (_) {}
+    try { Draw.add(aoi); } catch (_) {}
+  }
+  ensureAoiLayer();
+
+  const toTest = ['admin', 'urban', 'greenbelt'];
+  setLoading(true);
+  const results = [];
+  try {
+    for (const key of toTest) {
+      try {
+        await fetchAndShowLayer(key, aoi);
+        results.push(`✔ ${key}`);
+      } catch (e) {
+        console.error('Test fetch failed for', key, e);
+        results.push(`✖ ${key}: ${e.message}`);
+      }
+    }
+  } finally {
+    setLoading(false);
+  }
+  alert('테스트 결과\n' + results.join('\n'));
+}
+
+const testBtn = $('btn-test');
+if (testBtn) testBtn.addEventListener('click', runSmallTest);
