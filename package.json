@@ -1,0 +1,12 @@
+{
+  "name": "windreg-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOI 기반 VWorld WFS 뷰어 (풍력 규제 레이어)",
+  "scripts": {
+    "start": "http-server -p 5173 -c-1 ."
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

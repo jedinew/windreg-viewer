@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>풍력 규제 레이어 뷰어</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+  <!-- MapLibre & Draw -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet"/>
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/@mapbox/mapbox-gl-draw@1.6.2/dist/mapbox-gl-draw.css" rel="stylesheet"/>
+  <script src="https://unpkg.com/@mapbox/mapbox-gl-draw@1.6.2/dist/mapbox-gl-draw.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <!-- App styles -->
+  <link href="./src/styles.css" rel="stylesheet" />
+</head>
+<body>
+  <div id="panel">
+    <h1>풍력 규제 레이어 뷰어</h1>
+    <div class="small">1) VWorld Key 입력 → 2) AOI 폴리곤 그리기 → 3) 레이어 선택 후 가져오기 / On·Off</div>
+    <div class="hr"></div>
+
+    <label>VWorld API Key</label>
+    <input id="key" type="text" placeholder="YOUR_VWORLD_KEY"/>
+    <div class="small">Tip: localhost 도메인을 VWorld 콘솔에 등록하세요. (403 에러 방지)</div>
+
+    <div class="hr"></div>
+
+    <div class="section">
+      <div class="section-title">레이어</div>
+      <div class="check"><input id="chk-urban" type="checkbox" checked>
+        <label for="chk-urban">용도지역/지구 (도시계획)</label>
+        <span class="badge" id="cnt-urban">-</span></div>
+
+      <div class="check"><input id="chk-greenbelt" type="checkbox" checked>
+        <label for="chk-greenbelt">개발제한구역(그린벨트)</label>
+        <span class="badge" id="cnt-greenbelt">-</span></div>
+
+      <div class="check"><input id="chk-landscape" type="checkbox" checked>
+        <label for="chk-landscape">경관지구</label>
+        <span class="badge" id="cnt-landscape">-</span></div>
+
+      <div class="check"><input id="chk-admin" type="checkbox">
+        <label for="chk-admin">행정경계</label>
+        <span class="badge" id="cnt-admin">-</span></div>
+
+      <div class="check"><input id="chk-roads" type="checkbox">
+        <label for="chk-roads">도로망/교통링크</label>
+        <span class="badge" id="cnt-roads">-</span></div>
+
+      <div class="check"><input id="chk-slope" type="checkbox" checked>
+        <label for="chk-slope">급경사지역(경사15° 대체, lt_c_up401)</label>
+        <span class="badge" id="cnt-slope">-</span></div>
+    </div>
+
+    <div class="hr"></div>
+
+    <button id="btn-zoom">AOI로 줌</button>
+    <button id="btn-fetch">AOI로 레이어 가져오기</button>
+    <button id="btn-clear" class="secondary">결과 지우기</button>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="loading" class="hidden">
+    <div class="spinner"></div>
+    <div>데이터를 불러오는 중…</div>
+  </div>
+
+  <!-- App script -->
+  <script src="./src/app.js"></script>
+</body>
+</html>
