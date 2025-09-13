@@ -1,11 +1,13 @@
 html, body { height: 100%; margin: 0; }
 
-#map { position: absolute; inset: 0 0 0 320px; }
+:root { --panel-width: 320px; }
+
+#map { position: absolute; inset: 0 0 0 var(--panel-width); z-index: 1; }
 
 #panel {
-  position: absolute; inset: 0 auto 0 0; width: 320px; padding: 14px;
+  position: absolute; inset: 0 auto 0 0; width: var(--panel-width); padding: 14px;
   background: #0f172a; color: #e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; overflow: auto;
-  box-shadow: 0 0 24px rgba(0,0,0,.25);
+  box-shadow: 0 0 24px rgba(0,0,0,.25); z-index: 10;
 }
 
 h1 { font-size: 16px; margin: 0 0 8px; }
@@ -43,3 +45,20 @@ button.secondary { background: #374151; color: #e5e7eb; }
   border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive: widen panel on larger screens, keep map aligned */
+@media (min-width: 1200px) {
+  :root { --panel-width: 360px; }
+}
+
+/* Narrow screens: keep panel usable and ensure it sits above map */
+@media (max-width: 800px) {
+  :root { --panel-width: 280px; }
+}
+
+/* Very small screens: overlay panel and let map use full width */
+@media (max-width: 640px) {
+  :root { --panel-width: 100vw; }
+  #map { inset: 0; }
+  #panel { width: 100vw; background: rgba(15, 23, 42, 0.96); }
+}

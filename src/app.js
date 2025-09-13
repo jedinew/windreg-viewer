@@ -39,7 +39,8 @@ const map = new maplibregl.Map({
 });
 
 const Draw = new MapboxDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
-map.addControl(Draw, 'top-left');
+// Place Draw controls on the top-right so they are not hidden behind the left panel
+map.addControl(Draw, 'top-right');
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
 map.on('load', () => {
@@ -210,6 +211,29 @@ $('btn-clear').addEventListener('click', () => {
     state.fetched[k] = false;
   });
 });
+
+// Save key handler
+function saveKey() {
+  state.key = $('key').value.trim();
+  try { localStorage.setItem('vworld-key', state.key); } catch (_) {}
+  alert('VWorld Key가 저장되었습니다.');
+}
+
+const saveBtn = $('btn-save-key');
+if (saveBtn) saveBtn.addEventListener('click', saveKey);
+
+const keyInput = $('key');
+if (keyInput) {
+  // Load saved key
+  try {
+    const saved = localStorage.getItem('vworld-key');
+    if (saved) keyInput.value = saved;
+  } catch (_) {}
+  // Enter to save
+  keyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveKey();
+  });
+}
 
 // Toggle listeners: show/hide, and fetch on-demand when turning ON if data not fetched yet
 Object.keys(CONFIG.layers).forEach((k) => {
