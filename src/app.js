@@ -348,12 +348,56 @@ async function fetchLayerData(layerKey, aoi) {
           if (inter) clipped.features.push(inter);
         }
       } else if (gtype.includes('LineString')) {
-        if (turf.booleanIntersects(f, aoi)) clipped.features.push(f);
+        // Check if line intersects with AOI and clip if necessary
+        if (turf.booleanIntersects(f, aoi)) {
+          try {
+            // Try to clip the line to the AOI boundary
+            const clippedLine = turf.lineIntersect(f, aoi);
+            if (clippedLine && clippedLine.features.length > 0) {
+              clipped.features.push(f);
+            } else {
+              // If line is within AOI, include it
+              clipped.features.push(f);
+            }
+          } catch (_) {
+            // If clipping fails, include the original line if it intersects
+            clipped.features.push(f);
+          }
+        }
+      } else if (gtype === 'Point' || gtype === 'MultiPoint') {
+        // Check if point is within AOI
+        if (turf.booleanPointInPolygon(f, aoi)) {
+          clipped.features.push(f);
+        } else if (gtype === 'MultiPoint') {
+          // For MultiPoint, check each point
+          const coords = f.geometry.coordinates;
+          const inBounds = coords.filter(c => {
+            const pt = turf.point(c);
+            return turf.booleanPointInPolygon(pt, aoi);
+          });
+          if (inBounds.length > 0) {
+            clipped.features.push({
+              ...f,
+              geometry: {
+                type: 'MultiPoint',
+                coordinates: inBounds
+              }
+            });
+          }
+        }
       } else {
-        // Other types are ignored for now
+        // Other geometry types - include if they intersect
+        try {
+          if (turf.booleanIntersects(f, aoi)) {
+            clipped.features.push(f);
+          }
+        } catch (_) {
+          // Skip on error
+        }
       }
     } catch (e) {
       // skip errors
+      console.warn('Error processing feature:', e);
     }
   });
   return clipped;
@@ -374,27 +418,82 @@ function ensureResultLayers(layerKey, fc, color) {
   if (!map.getSource(srcId)) {
     map.addSource(srcId, { type: 'geojson', data: fc });
 
+    // Add polygon layers
     if (hasPolygon) {
-      map.addLayer({ id: fillId, type: 'fill', source: srcId, paint: { 'fill-color': color, 'fill-opacity': 0.25 } });
-      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+      map.addLayer({
+        id: fillId,
+        type: 'fill',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon'],
+        paint: { 'fill-color': color, 'fill-opacity': 0.25 }
+      });
+      map.addLayer({
+        id: lineId,
+        type: 'line',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'],
+        paint: { 'line-color': color, 'line-width': 2 }
+      });
     }
-    if (hasLine && !map.getLayer(lineId)) {
-      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+    // Add line layer if only lines (no polygons)
+    else if (hasLine) {
+      map.addLayer({
+        id: lineId,
+        type: 'line',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'LineString', 'MultiLineString'],
+        paint: { 'line-color': color, 'line-width': 3 }
+      });
     }
-    if (hasPoint && !map.getLayer(pointId)) {
-      map.addLayer({ id: pointId, type: 'circle', source: srcId, paint: { 'circle-radius': 4, 'circle-color': color, 'circle-stroke-color': '#333', 'circle-stroke-width': 1 } });
+    // Add point layer
+    if (hasPoint) {
+      map.addLayer({
+        id: pointId,
+        type: 'circle',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Point', 'MultiPoint'],
+        paint: {
+          'circle-radius': 5,
+          'circle-color': color,
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 2
+        }
+      });
     }
   } else {
     map.getSource(srcId).setData(fc);
     // Ensure appropriate layers exist if geometry types change between fetches
     if (hasPolygon && !map.getLayer(fillId)) {
-      map.addLayer({ id: fillId, type: 'fill', source: srcId, paint: { 'fill-color': color, 'fill-opacity': 0.25 } });
+      map.addLayer({
+        id: fillId,
+        type: 'fill',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon'],
+        paint: { 'fill-color': color, 'fill-opacity': 0.25 }
+      });
     }
     if ((hasPolygon || hasLine) && !map.getLayer(lineId)) {
-      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+      map.addLayer({
+        id: lineId,
+        type: 'line',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'],
+        paint: { 'line-color': color, 'line-width': hasPolygon ? 2 : 3 }
+      });
     }
     if (hasPoint && !map.getLayer(pointId)) {
-      map.addLayer({ id: pointId, type: 'circle', source: srcId, paint: { 'circle-radius': 4, 'circle-color': color, 'circle-stroke-color': '#333', 'circle-stroke-width': 1 } });
+      map.addLayer({
+        id: pointId,
+        type: 'circle',
+        source: srcId,
+        filter: ['in', ['geometry-type'], 'Point', 'MultiPoint'],
+        paint: {
+          'circle-radius': 5,
+          'circle-color': color,
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 2
+        }
+      });
     }
   }
 }
@@ -402,17 +501,21 @@ function ensureResultLayers(layerKey, fc, color) {
 function setLayerVisibility(layerKey, visible) {
   const lineId = 'lyr-' + layerKey;
   const fillId = lineId + '-fill';
+  const pointId = lineId + '-point';
   const vis = visible ? 'visible' : 'none';
   if (map.getLayer(lineId)) map.setLayoutProperty(lineId, 'visibility', vis);
   if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', vis);
+  if (map.getLayer(pointId)) map.setLayoutProperty(pointId, 'visibility', vis);
 }
 
 function removeLayerAndSource(layerKey) {
   const srcId = 'src-' + layerKey;
   const lineId = 'lyr-' + layerKey;
   const fillId = lineId + '-fill';
+  const pointId = lineId + '-point';
   if (map.getLayer(lineId)) map.removeLayer(lineId);
   if (map.getLayer(fillId)) map.removeLayer(fillId);
+  if (map.getLayer(pointId)) map.removeLayer(pointId);
   if (map.getSource(srcId)) map.removeSource(srcId);
 }
 
