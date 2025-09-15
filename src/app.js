@@ -156,6 +156,54 @@ function mercatorToLonLat(x, y) {
   return [lon, lat];
 }
 
+// Convert a GeoJSON FeatureCollection from EPSG:900913 (WebMercator meters)
+// back to EPSG:4326 (lon/lat in degrees) so MapLibre can render it.
+function convertFc900913To4326(fc) {
+  if (!fc || typeof fc !== 'object') return fc;
+  if (fc.type === 'FeatureCollection' && Array.isArray(fc.features)) {
+    return {
+      type: 'FeatureCollection',
+      features: fc.features.map((f) => convertFeature900913To4326(f))
+    };
+  }
+  if (fc.type === 'Feature') return convertFeature900913To4326(fc);
+  if (fc.type && fc.coordinates) {
+    return { type: 'FeatureCollection', features: [ { type: 'Feature', properties: {}, geometry: convertGeometry900913To4326(fc) } ] };
+  }
+  return fc;
+}
+
+function convertFeature900913To4326(feat) {
+  if (!feat) return feat;
+  const out = { type: 'Feature', properties: feat.properties || {}, bbox: feat.bbox };
+  out.geometry = convertGeometry900913To4326(feat.geometry);
+  return out;
+}
+
+function convertGeometry900913To4326(geom) {
+  if (!geom) return geom;
+  const t = geom.type;
+  const c = geom.coordinates;
+  switch (t) {
+    case 'Point':
+      return { type: 'Point', coordinates: mercatorToLonLat(c[0], c[1]) };
+    case 'MultiPoint':
+      return { type: 'MultiPoint', coordinates: c.map((p) => mercatorToLonLat(p[0], p[1])) };
+    case 'LineString':
+      return { type: 'LineString', coordinates: c.map((p) => mercatorToLonLat(p[0], p[1])) };
+    case 'MultiLineString':
+      return { type: 'MultiLineString', coordinates: c.map((line) => line.map((p) => mercatorToLonLat(p[0], p[1]))) };
+    case 'Polygon':
+      return { type: 'Polygon', coordinates: c.map((ring) => ring.map((p) => mercatorToLonLat(p[0], p[1]))) };
+    case 'MultiPolygon':
+      return { type: 'MultiPolygon', coordinates: c.map((poly) => poly.map((ring) => ring.map((p) => mercatorToLonLat(p[0], p[1])))) };
+    case 'GeometryCollection':
+      return { type: 'GeometryCollection', geometries: (geom.geometries || []).map(convertGeometry900913To4326) };
+    default:
+      return geom;
+  }
+}
+
 function updateAoiBboxMerc() {
   const aoi = getAoiFeature();
   const el = document.getElementById('aoi-bbox-merc');
