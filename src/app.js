@@ -483,14 +483,22 @@ function ensureResultLayers(layerKey, fc, color) {
         id: fillId,
         type: 'fill',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon']
+        ],
         paint: { 'fill-color': color, 'fill-opacity': 0.25 }
       });
       map.addLayer({
         id: lineId,
         type: 'line',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon'],
+          ['==', ['geometry-type'], 'LineString'],
+          ['==', ['geometry-type'], 'MultiLineString']
+        ],
         paint: { 'line-color': color, 'line-width': 2 }
       });
     }
@@ -500,7 +508,10 @@ function ensureResultLayers(layerKey, fc, color) {
         id: lineId,
         type: 'line',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'LineString', 'MultiLineString'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'LineString'],
+          ['==', ['geometry-type'], 'MultiLineString']
+        ],
         paint: { 'line-color': color, 'line-width': 3 }
       });
     }
@@ -510,7 +521,10 @@ function ensureResultLayers(layerKey, fc, color) {
         id: pointId,
         type: 'circle',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Point', 'MultiPoint'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Point'],
+          ['==', ['geometry-type'], 'MultiPoint']
+        ],
         paint: {
           'circle-radius': 5,
           'circle-color': color,
@@ -527,7 +541,10 @@ function ensureResultLayers(layerKey, fc, color) {
         id: fillId,
         type: 'fill',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon']
+        ],
         paint: { 'fill-color': color, 'fill-opacity': 0.25 }
       });
     }
@@ -536,7 +553,12 @@ function ensureResultLayers(layerKey, fc, color) {
         id: lineId,
         type: 'line',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['geometry-type'], 'MultiPolygon'],
+          ['==', ['geometry-type'], 'LineString'],
+          ['==', ['geometry-type'], 'MultiLineString']
+        ],
         paint: { 'line-color': color, 'line-width': hasPolygon ? 2 : 3 }
       });
     }
@@ -545,7 +567,10 @@ function ensureResultLayers(layerKey, fc, color) {
         id: pointId,
         type: 'circle',
         source: srcId,
-        filter: ['in', ['geometry-type'], 'Point', 'MultiPoint'],
+        filter: ['any',
+          ['==', ['geometry-type'], 'Point'],
+          ['==', ['geometry-type'], 'MultiPoint']
+        ],
         paint: {
           'circle-radius': 5,
           'circle-color': color,
