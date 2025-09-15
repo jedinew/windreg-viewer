@@ -258,8 +258,8 @@ function wfsUrl(key, typename, bbox4326) {
     OUTPUT: 'application/json',
     SRSNAME: srs,
     TYPENAME: typename,
-    // Append CRS to BBOX as requested, e.g. "...,EPSG:900913"
-    BBOX: bboxStr + ',EPSG:900913',
+    // Send BBOX as pure numbers; CRS is already specified via SRSNAME
+    BBOX: bboxStr,
     EXCEPTIONS: 'application/json',
     MAXFEATURES: '500'
   });
@@ -534,17 +534,65 @@ Object.keys(CONFIG.layers).forEach((k) => {
 map.on('draw.create', ensureAoiLayer);
 map.on('draw.update', ensureAoiLayer);
 // Keep AOI layers and BBOX live-updated while drawing/editing
-map.on('draw.render', () => syncAoiLayers(true));
-map.on('draw.modechange', () => syncAoiLayers(true));
-map.on('draw.selectionchange', () => syncAoiLayers(true));
+map.on('draw.render', () => { syncAoiLayers(true); updateLiveSketch(); });
+map.on('draw.modechange', (e) => { syncAoiLayers(true); updateLiveSketch(e); });
+map.on('draw.selectionchange', () => { syncAoiLayers(true); updateLiveSketch(); });
 map.on('draw.delete', () => {
   if (map.getLayer('aoi-fill')) map.removeLayer('aoi-fill');
   if (map.getLayer('aoi-line')) map.removeLayer('aoi-line');
   if (map.getLayer('aoi-points')) map.removeLayer('aoi-points');
   if (map.getSource('aoi-pts')) map.removeSource('aoi-pts');
   if (map.getSource('aoi')) map.removeSource('aoi');
+  clearLiveSketch();
   updateAoiBboxMerc();
 });
+
+// --- Live sketch helpers: show moving line and points while drawing before polygon is completed ---
+function updateLiveSketch(e) {
+  // If not in draw/create/modify modes, clear live layers
+  if (e && e.mode && (e.mode === 'simple_select' || e.mode === 'static')) {
+    clearLiveSketch();
+    return;
+  }
+  let fc = Draw.getAll();
+  if (!fc || !fc.features || fc.features.length === 0) { clearLiveSketch(); return; }
+  // Pick the last feature being edited/drawn
+  const f = fc.features[fc.features.length - 1];
+  if (!f || !f.geometry) { clearLiveSketch(); return; }
+
+  // Build a line and points from the outer ring if polygon; or coordinates directly for line
+  let lineCoords = [];
+  let pointCoords = [];
+  if (f.geometry.type === 'Polygon' && Array.isArray(f.geometry.coordinates) && f.geometry.coordinates[0]) {
+    lineCoords = f.geometry.coordinates[0];
+    pointCoords = lineCoords;
+  } else if (f.geometry.type === 'LineString') {
+    lineCoords = f.geometry.coordinates || [];
+    pointCoords = lineCoords;
+  } else {
+    // For other types we don't render live
+    clearLiveSketch();
+    return;
+  }
+
+  const liveSrcId = 'aoi-live';
+  const line = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: lineCoords } };
+  const pts = { type: 'FeatureCollection', features: (pointCoords || []).map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: c } })) };
+
+  if (!map.getSource(liveSrcId)) {
+    map.addSource(liveSrcId, { type: 'geojson', data: { type: 'FeatureCollection', features: [line, ...pts.features] } });
+    map.addLayer({ id: 'aoi-live-line', type: 'line', source: liveSrcId, filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#10b981', 'line-width': 2, 'line-dasharray': [2, 2] } });
+    map.addLayer({ id: 'aoi-live-points', type: 'circle', source: liveSrcId, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#34d399', 'circle-stroke-color': '#065f46', 'circle-stroke-width': 1 } });
+  } else {
+    map.getSource(liveSrcId).setData({ type: 'FeatureCollection', features: [line, ...pts.features] });
+  }
+}
+
+function clearLiveSketch() {
+  if (map.getLayer('aoi-live-line')) map.removeLayer('aoi-live-line');
+  if (map.getLayer('aoi-live-points')) map.removeLayer('aoi-live-points');
+  if (map.getSource('aoi-live')) map.removeSource('aoi-live');
+}
 
 // --- Capabilities helpers ---
 async function ensureCapabilities() {
