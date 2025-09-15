@@ -63,6 +63,15 @@
     <button id="btn-fetch">AOI로 레이어 가져오기</button>
     <button id="btn-test" class="secondary">테스트 호출(작은 영역)</button>
     <button id="btn-clear" class="secondary">결과 지우기</button>
+
+    <div class="hr"></div>
+    <div class="section">
+      <div class="section-title">AOI 정보 (EPSG:900913)</div>
+      <div class="small">BBOX: <span id="aoi-bbox-merc">-</span></div>
+      <div class="small" style="word-break: break-all;">
+        Last WFS URL: <span id="last-wfs-url">-</span>
+      </div>
+    </div>
   </div>
 
   <div id="map"></div>

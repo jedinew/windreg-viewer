@@ -76,10 +76,19 @@ function ensureAoiLayer() {
   if (!map.getSource('aoi')) {
     map.addSource('aoi', { type: 'geojson', data: fc });
     map.addLayer({ id: 'aoi-fill', type: 'fill', source: 'aoi', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.15 } });
-    map.addLayer({ id: 'aoi-line', type: 'line', source: 'aoi', paint: { 'line-color': '#22c55e', 'line-width': 2 } });
+    map.addLayer({ id: 'aoi-line', type: 'line', source: 'aoi', paint: { 'line-color': '#22c55e', 'line-width': 3 } });
   } else {
     map.getSource('aoi').setData(fc);
   }
+  // Create/update vertex points for better visibility
+  const pts = buildAoiVertexPoints(fc);
+  if (!map.getSource('aoi-pts')) {
+    map.addSource('aoi-pts', { type: 'geojson', data: pts });
+    map.addLayer({ id: 'aoi-points', type: 'circle', source: 'aoi-pts', paint: { 'circle-radius': 4, 'circle-color': '#16a34a', 'circle-stroke-color': '#064e3b', 'circle-stroke-width': 1 } });
+  } else {
+    map.getSource('aoi-pts').setData(pts);
+  }
+  updateAoiBboxMerc();
 }
 
 function fitToAoi() {
@@ -97,6 +106,40 @@ function lonLatToMercator(lon, lat) {
   const x = (lon * Math.PI / 180) * R;
   const y = Math.log(Math.tan((Math.PI / 4) + (clampedLat * Math.PI / 360))) * R;
   return [x, y];
+}
+
+function updateAoiBboxMerc() {
+  const aoi = getAoiFeature();
+  const el = document.getElementById('aoi-bbox-merc');
+  if (!el) return;
+  if (!aoi) { el.textContent = '-'; return; }
+  const b = turf.bbox(aoi); // [minLon, minLat, maxLon, maxLat]
+  const [minX, minY] = lonLatToMercator(b[0], b[1]);
+  const [maxX, maxY] = lonLatToMercator(b[2], b[3]);
+  const vals = [minX, minY, maxX, maxY].map((v) => Math.round(v));
+  el.textContent = vals.join(',');
+}
+
+function buildAoiVertexPoints(fc) {
+  const points = [];
+  for (const f of fc.features || []) {
+    const geom = f.geometry;
+    if (!geom) continue;
+    if (geom.type === 'Polygon') {
+      collectFromRings(geom.coordinates, points);
+    } else if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) collectFromRings(poly, points);
+    }
+  }
+  return { type: 'FeatureCollection', features: points };
+}
+
+function collectFromRings(rings, out) {
+  for (const ring of rings) {
+    for (const coord of ring) {
+      out.push({ type: 'Feature', geometry: { type: 'Point', coordinates: coord }, properties: {} });
+    }
+  }
 }
 
 // VWorld WFS URL (align with user's working pattern: EPSG:900913 bbox order xmin,ymin,xmax,ymax)
@@ -136,6 +179,10 @@ async function fetchLayerData(layerKey, aoi) {
   if (state.availableTypenames && !state.availableTypenames.has(typename)) {
     throw new Error(`지원되지 않는 레이어명입니다: ${typename}\n(GetCapabilities에 존재하지 않습니다)`);
   }
+
+  // Show last URL for debugging/verification
+  const urlSpan = document.getElementById('last-wfs-url');
+  if (urlSpan) urlSpan.textContent = url;
 
   const res = await fetchWithRetry(url, { headers: { 'Accept': 'application/json' } }, 2, 600);
   const ctype = res.headers.get('content-type') || '';
@@ -332,7 +379,10 @@ map.on('draw.update', ensureAoiLayer);
 map.on('draw.delete', () => {
   if (map.getLayer('aoi-fill')) map.removeLayer('aoi-fill');
   if (map.getLayer('aoi-line')) map.removeLayer('aoi-line');
+  if (map.getLayer('aoi-points')) map.removeLayer('aoi-points');
+  if (map.getSource('aoi-pts')) map.removeSource('aoi-pts');
   if (map.getSource('aoi')) map.removeSource('aoi');
+  updateAoiBboxMerc();
 });
 
 // --- Capabilities helpers ---
