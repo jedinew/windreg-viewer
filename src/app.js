@@ -149,6 +149,13 @@ function lonLatToMercator(lon, lat) {
   return [x, y];
 }
 
+function mercatorToLonLat(x, y) {
+  const R = 6378137.0;
+  const lon = (x / R) * (180 / Math.PI);
+  const lat = (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * (180 / Math.PI);
+  return [lon, lat];
+}
+
 function updateAoiBboxMerc() {
   const aoi = getAoiFeature();
   const el = document.getElementById('aoi-bbox-merc');
@@ -216,11 +223,8 @@ async function fetchLayerData(layerKey, aoi) {
   const bbox = turf.bbox(aoi);
   const url = wfsUrl(state.key, typename, bbox);
 
-  // Ensure typename exists by checking WFS GetCapabilities once
-  await ensureCapabilities();
-  if (state.availableTypenames && !state.availableTypenames.has(typename)) {
-    throw new Error(`지원되지 않는 레이어명입니다: ${typename}\n(GetCapabilities에 존재하지 않습니다)`);
-  }
+  // NOTE: Per user request, do not call GetCapabilities nor validate typename here.
+  // Some environments only allow direct GetFeature via proxy.
 
   // Show last URL for debugging/verification
   const urlSpan = document.getElementById('last-wfs-url');
@@ -263,13 +267,14 @@ async function fetchLayerData(layerKey, aoi) {
     const txt = await res.text().catch(() => '');
     // Try to parse JSON even if wrong content-type
     try {
-      const fc = JSON.parse(txt);
+      let fc = JSON.parse(txt);
+      fc = convertFc900913To4326(fc);
       return fc;
     } catch (_) {
       // Fallback to JSONP if server blocked CORS (MissingAllowOriginHeader)
       try {
         const data = await fetchWfsViaJsonp(url);
-        return data;
+        return convertFc900913To4326(data);
       } catch (e) {
         // Try to extract message from XML
         const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
@@ -279,7 +284,10 @@ async function fetchLayerData(layerKey, aoi) {
       }
     }
   }
-  const fc = await res.json();
+  let fc = await res.json();
+  // VWorld responded in EPSG:900913 (we requested SRSNAME=EPSG:900913) but MapLibre requires GeoJSON in EPSG:4326.
+  // Convert coordinates back to lon/lat before clipping and rendering.
+  fc = convertFc900913To4326(fc);
 
   const clipped = { type: 'FeatureCollection', features: [] };
   (fc.features || []).forEach((f) => {
@@ -305,20 +313,41 @@ async function fetchLayerData(layerKey, aoi) {
 
 function ensureResultLayers(layerKey, fc, color) {
   const srcId = 'src-' + layerKey;
-  const lineId = 'lyr-' + layerKey;
-  const fillId = lineId + '-fill';
-  const hasPolygon = (fc.features || []).some((f) => (f.geometry?.type || '').includes('Polygon'));
+  const baseId = 'lyr-' + layerKey;
+  const fillId = baseId + '-fill';
+  const lineId = baseId + '-line';
+  const pointId = baseId + '-point';
+
+  const types = (fc.features || []).map((f) => f.geometry?.type || '');
+  const hasPolygon = types.some((t) => t.includes('Polygon'));
+  const hasLine = types.some((t) => t.includes('LineString'));
+  const hasPoint = types.some((t) => t === 'Point' || t === 'MultiPoint');
 
   if (!map.getSource(srcId)) {
     map.addSource(srcId, { type: 'geojson', data: fc });
 
-    // Fill first (below), then line on top
     if (hasPolygon) {
       map.addLayer({ id: fillId, type: 'fill', source: srcId, paint: { 'fill-color': color, 'fill-opacity': 0.25 } });
+      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
     }
-    map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+    if (hasLine && !map.getLayer(lineId)) {
+      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+    }
+    if (hasPoint && !map.getLayer(pointId)) {
+      map.addLayer({ id: pointId, type: 'circle', source: srcId, paint: { 'circle-radius': 4, 'circle-color': color, 'circle-stroke-color': '#333', 'circle-stroke-width': 1 } });
+    }
   } else {
     map.getSource(srcId).setData(fc);
+    // Ensure appropriate layers exist if geometry types change between fetches
+    if (hasPolygon && !map.getLayer(fillId)) {
+      map.addLayer({ id: fillId, type: 'fill', source: srcId, paint: { 'fill-color': color, 'fill-opacity': 0.25 } });
+    }
+    if ((hasPolygon || hasLine) && !map.getLayer(lineId)) {
+      map.addLayer({ id: lineId, type: 'line', source: srcId, paint: { 'line-color': color, 'line-width': 2 } });
+    }
+    if (hasPoint && !map.getLayer(pointId)) {
+      map.addLayer({ id: pointId, type: 'circle', source: srcId, paint: { 'circle-radius': 4, 'circle-color': color, 'circle-stroke-color': '#333', 'circle-stroke-width': 1 } });
+    }
   }
 }
 
