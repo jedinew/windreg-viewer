@@ -89,28 +89,36 @@ function fitToAoi() {
   map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 800 });
 }
 
-// VWorld WFS URL
-function wfsUrl(key, typename, bbox) {
-  // bbox: [minX, minY, maxX, maxY]
-  const [minX, minY, maxX, maxY] = bbox;
-  const srs = 'EPSG:4326';
-  // Per VWorld WFS 1.1.0: when srsName=EPSG:4326, bbox order must be (ymin,xmin,ymax,xmax)
-  const bboxStr = srs === 'EPSG:4326'
-    ? [minY, minX, maxY, maxX].join(',')
-    : [minX, minY, maxX, maxY].join(',');
+// Simple lon/lat (EPSG:4326) to WebMercator (EPSG:900913) conversion
+function lonLatToMercator(lon, lat) {
+  const R = 6378137.0;
+  const max = 85.05112878;
+  const clampedLat = Math.max(Math.min(lat, max), -max);
+  const x = (lon * Math.PI / 180) * R;
+  const y = Math.log(Math.tan((Math.PI / 4) + (clampedLat * Math.PI / 360))) * R;
+  return [x, y];
+}
+
+// VWorld WFS URL (align with user's working pattern: EPSG:900913 bbox order xmin,ymin,xmax,ymax)
+function wfsUrl(key, typename, bbox4326) {
+  // bbox4326: [minLon, minLat, maxLon, maxLat]
+  const [minLon, minLat, maxLon, maxLat] = bbox4326;
+  const [minX, minY] = lonLatToMercator(minLon, minLat);
+  const [maxX, maxY] = lonLatToMercator(maxLon, maxLat);
+  const srs = 'EPSG:900913';
+  const bboxStr = [minX, minY, maxX, maxY].join(',');
 
   const base = 'https://api.vworld.kr/req/wfs';
   const params = new URLSearchParams({
     service: 'WFS', request: 'GetFeature', version: '1.1.0',
     key,
     domain: state.domain || location.hostname,
+    // Match user's proven working style but still request JSON for easier parsing
     output: 'application/json',
     srsName: srs,
     typename: typename,
-    // Do NOT append CRS in bbox string; VWorld uses srsName separately.
     bbox: bboxStr,
     exceptions: 'application/json',
-    // Limit features to reduce server load and avoid SYSTEM_ERROR
     maxfeatures: '500'
   });
   return base + '?' + params.toString();
