@@ -153,6 +153,12 @@ function mercatorToLonLat(x, y) {
   const R = 6378137.0;
   const lon = (x / R) * (180 / Math.PI);
   const lat = (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * (180 / Math.PI);
+
+  // Debug first few conversions
+  if (Math.random() < 0.001) {  // Log only 0.1% to avoid spam
+    console.log(`Mercator to LonLat: (${x}, ${y}) -> (${lon}, ${lat})`);
+  }
+
   return [lon, lat];
 }
 
@@ -369,14 +375,23 @@ async function fetchLayerData(layerKey, aoi) {
   }
 
   const clipped = { type: 'FeatureCollection', features: [] };
-  (fc.features || []).forEach((f) => {
+  console.log(`Clipping ${fc.features?.length || 0} features against AOI`);
+
+  (fc.features || []).forEach((f, idx) => {
     try {
       const gtype = f.geometry && f.geometry.type;
       if (!gtype) return;
+
       if (gtype.includes('Polygon')) {
-        if (turf.booleanIntersects(f, aoi)) {
+        const intersects = turf.booleanIntersects(f, aoi);
+        if (idx === 0) console.log(`First polygon intersects AOI: ${intersects}`);
+
+        if (intersects) {
           const inter = turf.intersect(f, aoi);
-          if (inter) clipped.features.push(inter);
+          if (inter) {
+            clipped.features.push(inter);
+            if (idx === 0) console.log('First polygon clipped successfully');
+          }
         }
       } else if (gtype.includes('LineString')) {
         // Check if line intersects with AOI and clip if necessary
@@ -431,6 +446,12 @@ async function fetchLayerData(layerKey, aoi) {
       console.warn('Error processing feature:', e);
     }
   });
+
+  console.log(`Clipping complete: ${clipped.features.length} features after clipping from ${fc.features?.length || 0} original features`);
+  if (clipped.features.length > 0) {
+    console.log('First clipped feature:', clipped.features[0]);
+  }
+
   return clipped;
 }
 
@@ -441,10 +462,17 @@ function ensureResultLayers(layerKey, fc, color) {
   const lineId = baseId + '-line';
   const pointId = baseId + '-point';
 
+  console.log(`Creating layers for ${layerKey}:`, {
+    features: fc.features?.length || 0,
+    firstFeature: fc.features?.[0]
+  });
+
   const types = (fc.features || []).map((f) => f.geometry?.type || '');
   const hasPolygon = types.some((t) => t.includes('Polygon'));
   const hasLine = types.some((t) => t.includes('LineString'));
   const hasPoint = types.some((t) => t === 'Point' || t === 'MultiPoint');
+
+  console.log(`Layer ${layerKey} geometry types:`, { hasPolygon, hasLine, hasPoint, types: [...new Set(types)] });
 
   if (!map.getSource(srcId)) {
     map.addSource(srcId, { type: 'geojson', data: fc });
