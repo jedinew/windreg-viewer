@@ -37,10 +37,10 @@ AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 풍력발전 관련 규�
 windreg-viewer/
 ├─ index.html
 ├─ README.md
-├─ server.py          # Python Flask 서버 (환경변수 지원)
+├─ server.py          # 간단한 Python 서버 (환경변수에서 API key 읽기)
 ├─ .env.example       # 환경변수 예제
 ├─ .env               # 실제 환경변수 파일 (생성 필요)
-├─ requirements.txt   # Python 패키지 목록
+├─ requirements.txt   # Python 패키지 (python-dotenv만 필요)
 ├─ package.json
 └─ src/
    ├─ app.js
@@ -49,11 +49,11 @@ windreg-viewer/
 
 ## 실행 방법
 
-### Python Flask 서버 실행 (권장)
+### Python 서버 실행
 
-1. Python 패키지 설치:
+1. Python 패키지 설치 (python-dotenv만 필요):
    ```bash
-   pip install -r requirements.txt
+   pip install python-dotenv
    ```
 
 2. 환경 변수 설정:
@@ -69,7 +69,7 @@ windreg-viewer/
 
 4. 브라우저에서 http://localhost:5173 접속
 
-서버가 환경 변수에서 API Key를 자동으로 읽어 프록시 역할을 수행합니다.
+서버가 환경 변수에서 API Key를 읽어 프론트엔드에 전달합니다.
 
 ## 사용법
 

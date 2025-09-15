@@ -15,32 +15,33 @@ const CONFIG = {
   }
 };
 
-// State management - API key is now handled by server
+// State management
 const state = {
-  configured: false, // Will be set from server config check
+  key: '',
+  domain: 'wind.rkswork.com',
   fetched: {}, // layerKey -> boolean
   capabilities: null, // cached capabilities text
   availableTypenames: null // Set of available typenames parsed from capabilities
 };
 
-// Check server configuration on load
-async function checkServerConfig() {
+// Load API key from server (environment variable)
+async function loadApiKey() {
   try {
-    const res = await fetch('/api/config');
-    const config = await res.json();
-    state.configured = config.configured;
-    if (!config.configured) {
-      console.warn('Server API key not configured. Set VWORLD_API_KEY in .env file.');
+    const res = await fetch('/api/key');
+    const data = await res.json();
+    state.key = data.key;
+    if (!state.key) {
+      console.warn('API key not set. Please set VWORLD_API_KEY in .env file');
     }
-    return config.configured;
+    return state.key;
   } catch (e) {
-    console.error('Failed to check server configuration:', e);
-    return false;
+    console.error('Failed to load API key:', e);
+    return '';
   }
 }
 
-// Initialize configuration check
-checkServerConfig();
+// Initialize on load
+loadApiKey();
 
 // Helpers
 const $ = (id) => document.getElementById(id);
@@ -271,20 +272,21 @@ function collectFromRings(rings, out) {
   }
 }
 
-// VWorld WFS URL - now server handles API key
-function wfsUrl(typename, bbox4326) {
+// VWorld WFS URL
+function wfsUrl(key, typename, bbox4326) {
   // bbox4326: [minLon, minLat, maxLon, maxLat]
   const [minLon, minLat, maxLon, maxLat] = bbox4326;
   const [minX, minY] = lonLatToMercator(minLon, minLat);
   const [maxX, maxY] = lonLatToMercator(maxLon, maxLat);
   const srs = 'EPSG:900913';
-  // Format to integer meters to match the example pattern: BBOX=13987670,3912271,14359383,4642932
   const bboxStr = [minX, minY, maxX, maxY].map((v) => Math.round(v)).join(',');
 
-  // Route through local proxy - server will add API key from environment
+  // Direct call to VWorld through proxy
   const base = '/proxy/wfs';
   const params = new URLSearchParams({
     SERVICE: 'WFS', REQUEST: 'GetFeature', VERSION: '1.1.0',
+    key,
+    domain: state.domain,
     OUTPUT: 'application/json',
     SRSNAME: srs,
     TYPENAME: typename,
@@ -298,7 +300,7 @@ function wfsUrl(typename, bbox4326) {
 async function fetchLayerData(layerKey, aoi) {
   const { typename } = CONFIG.layers[layerKey];
   const bbox = turf.bbox(aoi);
-  const url = wfsUrl(typename, bbox);
+  const url = wfsUrl(state.key, typename, bbox);
 
   // NOTE: Per user request, do not call GetCapabilities nor validate typename here.
   // Some environments only allow direct GetFeature via proxy.
@@ -634,9 +636,13 @@ async function fetchAndShowLayer(layerKey, aoi) {
 $('btn-zoom').addEventListener('click', () => fitToAoi());
 
 $('btn-fetch').addEventListener('click', async () => {
-  // Check server configuration
-  const configured = await checkServerConfig();
-  if (!configured) return alert('VWorld API Key가 설정되지 않았습니다. 서버의 .env 파일에 VWORLD_API_KEY를 설정해주세요.');
+  // Load API key if not already loaded
+  if (!state.key) {
+    await loadApiKey();
+    if (!state.key) {
+      return alert('VWorld API Key가 설정되지 않았습니다. .env 파일에 VWORLD_API_KEY를 설정해주세요.');
+    }
+  }
 
   const aoi = getAoiFeature();
   if (!aoi) return alert('AOI 폴리곤을 먼저 그려주세요.');
@@ -682,8 +688,12 @@ Object.keys(CONFIG.layers).forEach((k) => {
         setLayerVisibility(k, true);
       } else {
         // On-demand fetch when toggled on
-        const configured = await checkServerConfig();
-        if (!configured) return alert('VWorld API Key가 설정되지 않았습니다. 서버의 .env 파일에 VWORLD_API_KEY를 설정해주세요.');
+        if (!state.key) {
+          await loadApiKey();
+          if (!state.key) {
+            return alert('VWorld API Key가 설정되지 않았습니다. .env 파일에 VWORLD_API_KEY를 설정해주세요.');
+          }
+        }
         const aoi = getAoiFeature();
         if (!aoi) return alert('AOI 폴리곤을 먼저 그려주세요.');
         ensureAoiLayer();
@@ -771,9 +781,10 @@ function clearLiveSketch() {
 // --- Capabilities helpers ---
 async function ensureCapabilities() {
   if (state.availableTypenames) return;
-  // Capabilities are now handled through server proxy
   const url = '/proxy/wfs?' + new URLSearchParams({
-    service: 'WFS', request: 'GetCapabilities', version: '1.1.0'
+    service: 'WFS', request: 'GetCapabilities', version: '1.1.0',
+    key: state.key,
+    domain: state.domain
   }).toString();
   let text = '';
   try {
