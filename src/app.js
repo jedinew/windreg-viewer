@@ -106,7 +106,8 @@ function wfsUrl(key, typename, bbox4326) {
   const [minX, minY] = lonLatToMercator(minLon, minLat);
   const [maxX, maxY] = lonLatToMercator(maxLon, maxLat);
   const srs = 'EPSG:900913';
-  const bboxStr = [minX, minY, maxX, maxY].join(',');
+  // Format to integer meters to match the example pattern: BBOX=13987670,3912271,14359383,4642932
+  const bboxStr = [minX, minY, maxX, maxY].map((v) => Math.round(v)).join(',');
 
   const base = 'https://api.vworld.kr/req/wfs';
   const params = new URLSearchParams({
