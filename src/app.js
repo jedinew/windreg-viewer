@@ -193,7 +193,8 @@ function wfsUrl(key, typename, bbox4326) {
   // Format to integer meters to match the example pattern: BBOX=13987670,3912271,14359383,4642932
   const bboxStr = [minX, minY, maxX, maxY].map((v) => Math.round(v)).join(',');
 
-  const base = 'https://api.vworld.kr/req/wfs';
+  // Route through local proxy to avoid CORS issues
+  const base = '/proxy/wfs';
   const params = new URLSearchParams({
     SERVICE: 'WFS', REQUEST: 'GetFeature', VERSION: '1.1.0',
     key,
