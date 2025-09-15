@@ -111,16 +111,17 @@ function wfsUrl(key, typename, bbox4326) {
 
   const base = 'https://api.vworld.kr/req/wfs';
   const params = new URLSearchParams({
-    service: 'WFS', request: 'GetFeature', version: '1.1.0',
+    SERVICE: 'WFS', REQUEST: 'GetFeature', VERSION: '1.1.0',
     key,
     domain: state.domain || location.hostname,
     // Match user's proven working style but still request JSON for easier parsing
-    output: 'application/json',
-    srsName: srs,
-    typename: typename,
-    bbox: bboxStr,
-    exceptions: 'application/json',
-    maxfeatures: '500'
+    OUTPUT: 'application/json',
+    SRSNAME: srs,
+    TYPENAME: typename,
+    // Append CRS to BBOX as requested, e.g. "...,EPSG:900913"
+    BBOX: bboxStr + ',EPSG:900913',
+    EXCEPTIONS: 'application/json',
+    MAXFEATURES: '500'
   });
   return base + '?' + params.toString();
 }
