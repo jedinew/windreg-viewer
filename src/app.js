@@ -175,7 +175,12 @@ function convertFc900913To4326(fc) {
 
 function convertFeature900913To4326(feat) {
   if (!feat) return feat;
-  const out = { type: 'Feature', properties: feat.properties || {}, bbox: feat.bbox };
+  const out = {
+    type: 'Feature',
+    properties: feat.properties || {},
+    bbox: feat.bbox,
+    id: feat.id  // Preserve feature ID
+  };
   out.geometry = convertGeometry900913To4326(feat.geometry);
   return out;
 }
@@ -333,9 +338,35 @@ async function fetchLayerData(layerKey, aoi) {
     }
   }
   let fc = await res.json();
+  console.log('Raw WFS response:', fc);
   // VWorld responded in EPSG:900913 (we requested SRSNAME=EPSG:900913) but MapLibre requires GeoJSON in EPSG:4326.
   // Convert coordinates back to lon/lat before clipping and rendering.
   fc = convertFc900913To4326(fc);
+  console.log('Converted to EPSG:4326:', fc);
+
+  // Validate converted coordinates are in Korea region (roughly)
+  if (fc.features && fc.features.length > 0) {
+    const firstFeature = fc.features[0];
+    if (firstFeature.geometry && firstFeature.geometry.coordinates) {
+      let sampleCoord;
+      const geomType = firstFeature.geometry.type;
+      if (geomType === 'Point') {
+        sampleCoord = firstFeature.geometry.coordinates;
+      } else if (geomType === 'LineString') {
+        sampleCoord = firstFeature.geometry.coordinates[0];
+      } else if (geomType === 'Polygon') {
+        sampleCoord = firstFeature.geometry.coordinates[0][0];
+      } else if (geomType === 'MultiPolygon') {
+        sampleCoord = firstFeature.geometry.coordinates[0][0][0];
+      }
+      if (sampleCoord) {
+        console.log('Sample converted coordinate:', sampleCoord);
+        if (sampleCoord[0] < 124 || sampleCoord[0] > 132 || sampleCoord[1] < 33 || sampleCoord[1] > 39) {
+          console.warn('Warning: Converted coordinates may be out of expected range for Korea!');
+        }
+      }
+    }
+  }
 
   const clipped = { type: 'FeatureCollection', features: [] };
   (fc.features || []).forEach((f) => {
