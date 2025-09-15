@@ -3,15 +3,15 @@
 // App config
 const CONFIG = {
   layers: {
-    urban:     { typename: 'lt_c_uq121', color: '#3b82f6', label: '용도지역/지구 (도시계획)' },
+    urban:     { typename: 'lt_c_uq111', color: '#3b82f6', label: '용도지역도_도시지역' },
     greenbelt: { typename: 'lt_c_ud801', color: '#ef4444', label: '개발제한구역(그린벨트)' },
-    natural:   { typename: 'lt_c_uf801', color: '#f97316', label: '자연공원구역' },
-    forest:    { typename: 'lt_c_uf211', color: '#059669', label: '산림보호구역' },
-    habitat:   { typename: 'lt_c_em011', color: '#7c3aed', label: '생태자연도 1등급' },
-    wetland:   { typename: 'lt_c_wkmstrm', color: '#0891b2', label: '하천/습지보호구역' },
-    cultural:  { typename: 'lt_c_uh111', color: '#dc2626', label: '문화재보호구역' },
-    baekdu:    { typename: 'lt_c_uq153', color: '#991b1b', label: '백두대간보호지역' },
-    bird:      { typename: 'lt_c_em012', color: '#f59e0b', label: '조류보호구역' }
+    natural:   { typename: 'lt_c_uq162', color: '#f97316', label: '도시자연공원구역' },
+    forest:    { typename: 'lt_c_uf151', color: '#059669', label: '산림보호구역' },
+    wetland:   { typename: 'lt_c_um901', color: '#0891b2', label: '습지보호지역' },
+    cultural:  { typename: 'lt_c_uo301', color: '#dc2626', label: '문화유산보호도' },
+    baekdu:    { typename: 'lt_c_uf901', color: '#991b1b', label: '백두대간보호지역' },
+    wildlife:  { typename: 'lt_c_um221', color: '#7c3aed', label: '야생동식물보호' },
+    water:     { typename: 'lt_c_um710', color: '#f59e0b', label: '상수원보호' }
   }
 };
 
