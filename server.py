@@ -4,10 +4,6 @@ import http.server
 import socketserver
 import json
 from urllib.parse import urlparse
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 PORT = 5173
 VWORLD_API_KEY = os.getenv('VWORLD_API_KEY', '')
@@ -29,7 +25,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     if not VWORLD_API_KEY:
-        print("⚠️  Warning: VWORLD_API_KEY not set in .env file")
+        print("⚠️  Warning: VWORLD_API_KEY not set in environment variable")
+        print("   Set it with: export VWORLD_API_KEY=your_key_here")
     else:
         print(f"✓ API Key loaded from environment")
 

@@ -22,15 +22,9 @@ AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 풍력발전 관련 규�
 
 ## 설정 방법
 
-### 환경 변수 설정 (필수)
+### VWorld API Key 발급
 
-1. [VWorld](https://www.vworld.kr/dev/v4dv_2ddataguide2_s001.do)에서 API Key 발급
-2. `.env.example` 파일을 `.env`로 복사
-3. `.env` 파일에 API Key 설정:
-   ```bash
-   VWORLD_API_KEY=YOUR_VWORLD_API_KEY_HERE
-   VWORLD_DOMAIN=wind.rkswork.com  # 또는 본인 도메인
-   ```
+[VWorld](https://www.vworld.kr/dev/v4dv_2ddataguide2_s001.do)에서 API Key 발급
 
 ## 폴더 구조
 ```
@@ -38,9 +32,6 @@ windreg-viewer/
 ├─ index.html
 ├─ README.md
 ├─ server.py          # 간단한 Python 서버 (환경변수에서 API key 읽기)
-├─ .env.example       # 환경변수 예제
-├─ .env               # 실제 환경변수 파일 (생성 필요)
-├─ requirements.txt   # Python 패키지 (python-dotenv만 필요)
 ├─ package.json
 └─ src/
    ├─ app.js
@@ -51,23 +42,17 @@ windreg-viewer/
 
 ### Python 서버 실행
 
-1. Python 패키지 설치 (python-dotenv만 필요):
+1. 환경 변수 설정:
    ```bash
-   pip install python-dotenv
+   export VWORLD_API_KEY=YOUR_VWORLD_API_KEY_HERE
    ```
 
-2. 환경 변수 설정:
-   ```bash
-   cp .env.example .env
-   # .env 파일을 열어 VWORLD_API_KEY 입력
-   ```
-
-3. 서버 실행:
+2. 서버 실행:
    ```bash
    python server.py
    ```
 
-4. 브라우저에서 http://localhost:5173 접속
+3. 브라우저에서 http://localhost:5173 접속
 
 서버가 환경 변수에서 API Key를 읽어 프론트엔드에 전달합니다.
 
