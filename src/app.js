@@ -71,21 +71,27 @@ function getAoiFC() {
 }
 
 function ensureAoiLayer() {
+  syncAoiLayers(false);
+}
+
+function syncAoiLayers(updateOnly) {
   const fc = getAoiFC();
   if (!fc) return;
-  if (!map.getSource('aoi')) {
+  const hasSrc = !!map.getSource('aoi');
+  if (!hasSrc && !updateOnly) {
     map.addSource('aoi', { type: 'geojson', data: fc });
     map.addLayer({ id: 'aoi-fill', type: 'fill', source: 'aoi', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.15 } });
     map.addLayer({ id: 'aoi-line', type: 'line', source: 'aoi', paint: { 'line-color': '#22c55e', 'line-width': 3 } });
-  } else {
+  } else if (hasSrc) {
     map.getSource('aoi').setData(fc);
   }
   // Create/update vertex points for better visibility
   const pts = buildAoiVertexPoints(fc);
-  if (!map.getSource('aoi-pts')) {
+  const hasPts = !!map.getSource('aoi-pts');
+  if (!hasPts && !updateOnly) {
     map.addSource('aoi-pts', { type: 'geojson', data: pts });
     map.addLayer({ id: 'aoi-points', type: 'circle', source: 'aoi-pts', paint: { 'circle-radius': 4, 'circle-color': '#16a34a', 'circle-stroke-color': '#064e3b', 'circle-stroke-width': 1 } });
-  } else {
+  } else if (hasPts) {
     map.getSource('aoi-pts').setData(pts);
   }
   updateAoiBboxMerc();
@@ -182,7 +188,14 @@ async function fetchLayerData(layerKey, aoi) {
 
   // Show last URL for debugging/verification
   const urlSpan = document.getElementById('last-wfs-url');
-  if (urlSpan) urlSpan.textContent = url;
+  if (urlSpan) {
+    // Show a more human-readable URL (decode commas/colons)
+    let pretty = url;
+    try { pretty = decodeURIComponent(url); } catch (_) {
+      pretty = url.replace(/%2C/gi, ',').replace(/%3A/gi, ':');
+    }
+    urlSpan.textContent = pretty;
+  }
 
   const res = await fetchWithRetry(url, { headers: { 'Accept': 'application/json' } }, 2, 600);
   const ctype = res.headers.get('content-type') || '';
@@ -376,6 +389,10 @@ Object.keys(CONFIG.layers).forEach((k) => {
 // Update AOI layers on draw events
 map.on('draw.create', ensureAoiLayer);
 map.on('draw.update', ensureAoiLayer);
+// Keep AOI layers and BBOX live-updated while drawing/editing
+map.on('draw.render', () => syncAoiLayers(true));
+map.on('draw.modechange', () => syncAoiLayers(true));
+map.on('draw.selectionchange', () => syncAoiLayers(true));
 map.on('draw.delete', () => {
   if (map.getLayer('aoi-fill')) map.removeLayer('aoi-fill');
   if (map.getLayer('aoi-line')) map.removeLayer('aoi-line');
