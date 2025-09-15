@@ -22,23 +22,14 @@ AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 풍력발전 관련 규�
 
 ## 설정 방법
 
-### VWorld API Key 설정
+### 환경 변수 설정 (필수)
 
 1. [VWorld](https://www.vworld.kr/dev/v4dv_2ddataguide2_s001.do)에서 API Key 발급
-2. `config.js` 파일을 열어 API Key 설정:
-   ```javascript
-   window.VWORLD_API_KEY = 'YOUR_VWORLD_API_KEY_HERE';
-   window.VWORLD_DOMAIN = 'wind.rkswork.com';  // 또는 본인 도메인
-   ```
-
-### 환경 변수 사용 (프로덕션)
-
-프로덕션 환경에서는 환경 변수로 설정 가능:
-1. `.env.example` 파일을 `.env`로 복사
-2. 환경 변수 설정:
-   ```
+2. `.env.example` 파일을 `.env`로 복사
+3. `.env` 파일에 API Key 설정:
+   ```bash
    VWORLD_API_KEY=YOUR_VWORLD_API_KEY_HERE
-   VWORLD_DOMAIN=your-domain.com
+   VWORLD_DOMAIN=wind.rkswork.com  # 또는 본인 도메인
    ```
 
 ## 폴더 구조
@@ -46,8 +37,10 @@ AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 풍력발전 관련 규�
 windreg-viewer/
 ├─ index.html
 ├─ README.md
-├─ config.js          # API 키 설정
+├─ server.py          # Python Flask 서버 (환경변수 지원)
 ├─ .env.example       # 환경변수 예제
+├─ .env               # 실제 환경변수 파일 (생성 필요)
+├─ requirements.txt   # Python 패키지 목록
 ├─ package.json
 └─ src/
    ├─ app.js
@@ -56,22 +49,31 @@ windreg-viewer/
 
 ## 실행 방법
 
-### 방법 A) Node http-server
-```bash
-npm install
-npm run start
-```
-브라우저에서 http://localhost:5173 접속
+### Python Flask 서버 실행 (권장)
 
-### 방법 B) Python 내장 서버
-```bash
-python3 -m http.server 5173
-```
-브라우저에서 http://localhost:5173 접속
+1. Python 패키지 설치:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 환경 변수 설정:
+   ```bash
+   cp .env.example .env
+   # .env 파일을 열어 VWORLD_API_KEY 입력
+   ```
+
+3. 서버 실행:
+   ```bash
+   python server.py
+   ```
+
+4. 브라우저에서 http://localhost:5173 접속
+
+서버가 환경 변수에서 API Key를 자동으로 읽어 프록시 역할을 수행합니다.
 
 ## 사용법
 
-1. **API Key 설정**: `config.js` 파일에서 VWorld API Key 설정
+1. **서버 실행**: 위의 실행 방법에 따라 Python 서버 시작
 2. **AOI 폴리곤 그리기**: 지도 우측 상단의 다각형 도구로 관심 지역 선택
 3. **레이어 가져오기**: 필요한 규제 레이어 체크 후 "AOI로 레이어 가져오기" 클릭
 4. **레이어 관리**:
