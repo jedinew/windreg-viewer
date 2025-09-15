@@ -6,9 +6,12 @@ const CONFIG = {
     urban:     { typename: 'lt_c_uq121', color: '#3b82f6', label: '용도지역/지구 (도시계획)' },
     greenbelt: { typename: 'lt_c_ud801', color: '#ef4444', label: '개발제한구역(그린벨트)' },
     landscape: { typename: 'lt_c_uq121', color: '#f97316', label: '경관지구' },
-    admin:     { typename: 'lt_c_adsigg', color: '#eab308', label: '행정경계' },
-    roads:     { typename: 'lt_l_moctlink', color: '#93c5fd', label: '도로망/교통링크' },
-    slope:     { typename: 'lt_c_up401', color: '#22c55e', label: '급경사지역' }
+    slope:     { typename: 'lt_c_up401', color: '#22c55e', label: '급경사지역' },
+    forest:    { typename: 'lt_c_uf211', color: '#059669', label: '산림보호구역' },
+    habitat:   { typename: 'lt_c_em011', color: '#7c3aed', label: '생태자연도 1등급' },
+    wetland:   { typename: 'lt_c_wkmstrm', color: '#0891b2', label: '하천/습지보호구역' },
+    cultural:  { typename: 'lt_c_uh111', color: '#dc2626', label: '문화재보호구역' },
+    military:  { typename: 'lt_c_um111', color: '#991b1b', label: '군사시설보호구역' }
   }
 };
 
