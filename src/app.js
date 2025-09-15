@@ -566,3 +566,50 @@ async function runSmallTest() {
 
 const testBtn = $('btn-test');
 if (testBtn) testBtn.addEventListener('click', runSmallTest);
+
+// --- JSONP fallback for CORS-restricted responses ---
+function buildJsonpUrl(originalUrl, cbName) {
+  const u = new URL(originalUrl);
+  const p = u.searchParams;
+  // Force JSONP output
+  p.set('OUTPUT', 'text/javascript');
+  p.set('EXCEPTIONS', 'text/javascript');
+  // VWorld JSONP callback param name is format_options=callback:NAME
+  p.set('format_options', `callback:${cbName}`);
+  u.search = p.toString();
+  return u.toString();
+}
+
+function fetchWfsViaJsonp(originalUrl, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const cbName = `__vworld_jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const url = buildJsonpUrl(originalUrl, cbName);
+
+    let script;
+    const cleanup = () => {
+      try { delete window[cbName]; } catch (_) {}
+      if (script && script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP 요청 시간이 초과되었습니다. (CORS 차단 가능성)'));
+    }, timeoutMs);
+
+    window[cbName] = function(data) {
+      clearTimeout(timer);
+      cleanup();
+      resolve(data);
+    };
+
+    script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+    script.onerror = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('JSONP 스크립트 로딩 실패'));
+    };
+    document.head.appendChild(script);
+  });
+}
