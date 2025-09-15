@@ -232,7 +232,19 @@ async function fetchLayerData(layerKey, aoi) {
     urlSpan.textContent = pretty;
   }
 
-  const res = await fetchWithRetry(url, { headers: { 'Accept': 'application/json' } }, 2, 600);
+  const res = await fetchWithRetry(
+    url,
+    {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache',
+      credentials: 'omit',
+      referrerPolicy: 'origin',
+      headers: { Accept: 'application/json' }
+    },
+    2,
+    600
+  );
   const ctype = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
