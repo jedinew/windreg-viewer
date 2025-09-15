@@ -41,7 +41,42 @@ const map = new maplibregl.Map({
   attributionControl: true
 });
 
-const Draw = new MapboxDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
+const Draw = new MapboxDraw({
+  displayControlsDefault: false,
+  controls: { polygon: true, trash: true },
+  styles: [
+    // Active polygon fill while drawing
+    {
+      id: 'gl-draw-polygon-fill-active-strong', type: 'fill', filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+      paint: { 'fill-color': '#22c55e', 'fill-outline-color': '#16a34a', 'fill-opacity': 0.2 }
+    },
+    // Inactive polygon fill
+    {
+      id: 'gl-draw-polygon-fill-inactive-strong', type: 'fill', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+      paint: { 'fill-color': '#22c55e', 'fill-outline-color': '#16a34a', 'fill-opacity': 0.1 }
+    },
+    // Polygon stroke
+    {
+      id: 'gl-draw-polygon-stroke-active-strong', type: 'line', filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#16a34a', 'line-width': 3 }
+    },
+    {
+      id: 'gl-draw-polygon-stroke-inactive-strong', type: 'line', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#16a34a', 'line-width': 2 }
+    },
+    // Vertex points
+    {
+      id: 'gl-draw-points-active', type: 'circle', filter: ['all', ['==', 'meta', 'feature'], ['==', '$type', 'Point']],
+      paint: { 'circle-radius': 5, 'circle-color': '#22c55e', 'circle-stroke-color': '#064e3b', 'circle-stroke-width': 1 }
+    },
+    {
+      id: 'gl-draw-points-mid', type: 'circle', filter: ['all', ['==', 'meta', 'midpoint'], ['==', '$type', 'Point']],
+      paint: { 'circle-radius': 4, 'circle-color': '#f59e0b' }
+    }
+  ]
+});
 // Place Draw controls on the top-right so they are not hidden behind the left panel
 map.addControl(Draw, 'top-right');
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -198,19 +233,25 @@ async function fetchLayerData(layerKey, aoi) {
   }
 
   const res = await fetchWithRetry(url, { headers: { 'Accept': 'application/json' } }, 2, 600);
-  const ctype = res.headers.get('content-type') || '';
+  const ctype = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`WFS 요청 실패 (${res.status}) ${txt.slice(0, 200)}`);
   }
   // Guard: some servers return XML error with 200 OK
-  if (!ctype.includes('application/json')) {
+  if (!ctype.includes('json')) {
     const txt = await res.text().catch(() => '');
-    // Try to extract message from XML
-    const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
-    const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
-    console.warn('WFS non-JSON response.', { url, preview: txt.slice(0, 1000) });
-    throw new Error(`WFS 응답이 JSON이 아닙니다. (아마도 Key/도메인/파라미터 문제)\n${msg}`);
+    // Try to parse JSON even if wrong content-type
+    try {
+      const fc = JSON.parse(txt);
+      return fc;
+    } catch (_) {
+      // Try to extract message from XML
+      const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
+      const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
+      console.warn('WFS non-JSON response.', { url, preview: txt.slice(0, 1000) });
+      throw new Error(`WFS 응답이 JSON이 아닙니다. (아마도 Key/도메인/파라미터/좌표계 문제)\n${msg}`);
+    }
   }
   const fc = await res.json();
 
