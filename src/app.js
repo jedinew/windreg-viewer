@@ -232,19 +232,26 @@ async function fetchLayerData(layerKey, aoi) {
     urlSpan.textContent = pretty;
   }
 
-  const res = await fetchWithRetry(
-    url,
-    {
-      method: 'GET',
-      mode: 'cors',
-      cache: 'no-cache',
-      credentials: 'omit',
-      referrerPolicy: 'origin',
-      headers: { Accept: 'application/json' }
-    },
-    2,
-    600
-  );
+  let res;
+  try {
+    res = await fetchWithRetry(
+      url,
+      {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+        credentials: 'omit',
+        referrerPolicy: 'origin',
+        headers: { Accept: 'application/json' }
+      },
+      2,
+      600
+    );
+  } catch (e) {
+    // Possible CORS error (MissingAllowOriginHeader). Fallback to JSONP.
+    const data = await fetchWfsViaJsonp(url);
+    return data;
+  }
   const ctype = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
@@ -258,11 +265,17 @@ async function fetchLayerData(layerKey, aoi) {
       const fc = JSON.parse(txt);
       return fc;
     } catch (_) {
-      // Try to extract message from XML
-      const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
-      const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
-      console.warn('WFS non-JSON response.', { url, preview: txt.slice(0, 1000) });
-      throw new Error(`WFS 응답이 JSON이 아닙니다. (아마도 Key/도메인/파라미터/좌표계 문제)\n${msg}`);
+      // Fallback to JSONP if server blocked CORS (MissingAllowOriginHeader)
+      try {
+        const data = await fetchWfsViaJsonp(url);
+        return data;
+      } catch (e) {
+        // Try to extract message from XML
+        const m = txt.match(/<\w*Exception[^>]*>([\s\S]*?)<\//i);
+        const msg = m ? m[1].trim().replace(/\s+/g, ' ') : txt.slice(0, 200);
+        console.warn('WFS non-JSON response.', { url, preview: txt.slice(0, 1000) });
+        throw new Error(`WFS 응답이 JSON이 아닙니다. (CORS 또는 파라미터 문제)\n${msg}`);
+      }
     }
   }
   const fc = await res.json();
