@@ -1,64 +1,91 @@
 # 풍력 규제 레이어 뷰어 (VWorld + MapLibre)
 
-AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 규제/참조 레이어를 가져오고, 지도를 통해 On/Off하며 간단 분석을 돕는 웹 앱입니다.
+AOI(관심영역) 폴리곤을 그려서 VWorld WFS로 풍력발전 관련 규제 레이어를 가져오고, 지도를 통해 시각화하는 웹 애플리케이션입니다.
 
 ## 주요 기능
 - AOI 폴리곤 직접 그리기(Mapbox GL Draw)
-- VWorld WFS API로 레이어 가져오기 및 AOI 기준 클리핑(Turf.js)
+- VWorld WFS API로 풍력발전 규제 레이어 가져오기 및 AOI 기준 클리핑(Turf.js)
+- 색상별 레이어 구분 표시
 - 레이어 On/Off 토글 및 피처 개수 표시
 - 로딩 오버레이, 에러 핸들링
 
-지원 레이어(예시)
-- 용도지역/지구: `lt_c_uq121`
-- 개발제한구역: `lt_c_ud801`
-- 경관지구: `lt_c_uq121`
-- 행정경계(시군구): `lt_c_adsigg`
-- 도로망/교통링크: `lt_l_moctlink`
-- 급경사지역: `lt_c_up401`
+## 풍력발전 관련 규제 레이어
+- 🔵 **용도지역/지구** (`lt_c_uq121`) - 도시계획 용도지역
+- 🔴 **개발제한구역** (`lt_c_ud801`) - 그린벨트
+- 🟠 **자연공원구역** (`lt_c_uf801`) - 국립/도립/군립공원
+- 🟢 **산림보호구역** (`lt_c_uf211`) - 산림보호지역
+- 🟣 **생태자연도 1등급** (`lt_c_em011`) - 생태보호지역
+- 🔷 **하천/습지보호구역** (`lt_c_wkmstrm`) - 수자원보호구역
+- 🔴 **문화재보호구역** (`lt_c_uh111`) - 문화재보호지역
+- 🟤 **백두대간보호지역** (`lt_c_uq153`) - 백두대간 핵심/완충구역
+- 🟡 **조류보호구역** (`lt_c_em012`) - 철새도래지 및 조류서식지
 
-필요 시 VWorld 데이터셋 식별자(typname)는 자유롭게 조정하세요.
+## 설정 방법
+
+### VWorld API Key 설정
+
+1. [VWorld](https://www.vworld.kr/dev/v4dv_2ddataguide2_s001.do)에서 API Key 발급
+2. `config.js` 파일을 열어 API Key 설정:
+   ```javascript
+   window.VWORLD_API_KEY = 'YOUR_VWORLD_API_KEY_HERE';
+   window.VWORLD_DOMAIN = 'wind.rkswork.com';  // 또는 본인 도메인
+   ```
+
+### 환경 변수 사용 (프로덕션)
+
+프로덕션 환경에서는 환경 변수로 설정 가능:
+1. `.env.example` 파일을 `.env`로 복사
+2. 환경 변수 설정:
+   ```
+   VWORLD_API_KEY=YOUR_VWORLD_API_KEY_HERE
+   VWORLD_DOMAIN=your-domain.com
+   ```
 
 ## 폴더 구조
 ```
 windreg-viewer/
 ├─ index.html
 ├─ README.md
-├─ package.json (선택)
+├─ config.js          # API 키 설정
+├─ .env.example       # 환경변수 예제
+├─ package.json
 └─ src/
    ├─ app.js
    └─ styles.css
 ```
 
 ## 실행 방법
-정적 사이트라 간단한 로컬 서버로 실행하면 됩니다. (브라우저 `file://`로 열면 일부 리소스/보안 이슈가 생길 수 있어 서버 권장)
 
 ### 방법 A) Node http-server
-1) Node.js 설치 후 프로젝트 폴더에서:
-```
+```bash
 npm install
 npm run start
 ```
-2) 브라우저에서 http://localhost:5173 접속
+브라우저에서 http://localhost:5173 접속
 
 ### 방법 B) Python 내장 서버
-Node 설치가 부담스러우면 다음도 가능합니다:
-```
+```bash
 python3 -m http.server 5173
 ```
-이후 http://localhost:5173 접속
+브라우저에서 http://localhost:5173 접속
 
 ## 사용법
-1) 우측 패널에 VWorld API Key를 입력합니다. (VWorld 콘솔에 `localhost` 도메인을 등록해야 403 오류를 피할 수 있습니다.)
-2) 좌상단의 다각형 도구로 AOI 폴리곤을 그립니다.
-3) 필요한 레이어를 체크 후 “AOI로 레이어 가져오기” 버튼을 누릅니다.
-4) 각 레이어 우측 뱃지에 피처 개수가 표시됩니다. 체크박스로 On/Off 할 수 있습니다.
-5) “AOI로 줌” 버튼으로 AOI 범위로 화면을 맞출 수 있습니다.
-6) “결과 지우기”로 지도에 올린 결과 레이어를 제거합니다. (AOI는 Draw의 휴지통으로 지울 수 있습니다)
 
-## 주의/팁
-- VWorld WFS 호출량이 많거나 AOI가 큰 경우 응답이 느릴 수 있습니다. 필요 시 AOI를 작게 하거나 조회 범위를 나누세요.
-- 일부 데이터는 폴리곤/라인 혼합일 수 있습니다. 본 앱은 폴리곤은 교차(intersect)하여 클리핑, 라인은 AOI와 교차 여부만 확인해 표시합니다.
-- 필요에 따라 스타일(색상/두께/투명도)과 레이어 순서를 조정하세요.
+1. **API Key 설정**: `config.js` 파일에서 VWorld API Key 설정
+2. **AOI 폴리곤 그리기**: 지도 우측 상단의 다각형 도구로 관심 지역 선택
+3. **레이어 가져오기**: 필요한 규제 레이어 체크 후 "AOI로 레이어 가져오기" 클릭
+4. **레이어 관리**:
+   - 각 레이어 옆 색상 표시로 구분
+   - 체크박스로 레이어 On/Off
+   - 우측 뱃지에 피처 개수 표시
+5. **화면 제어**:
+   - "AOI로 줌": AOI 범위로 화면 맞춤
+   - "결과 지우기": 모든 결과 레이어 제거
+
+## 주의사항
+- VWorld 콘솔에 사용 도메인을 등록해야 403 오류를 피할 수 있습니다
+- AOI가 클 경우 응답이 느릴 수 있으므로 적절한 크기로 설정하세요
+- 일부 데이터는 폴리곤/라인이 혼합되어 있을 수 있습니다
 
 ## 라이선스
-이 예제는 데모 용도로 제공됩니다. 데이터 사용 정책은 VWorld 및 해당 데이터 제공기관의 정책을 따릅니다.
+이 애플리케이션은 데모 용도로 제공됩니다. 데이터 사용 정책은 VWorld 및 해당 데이터 제공기관의 정책을 따릅니다.

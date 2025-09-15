@@ -5,19 +5,23 @@ const CONFIG = {
   layers: {
     urban:     { typename: 'lt_c_uq121', color: '#3b82f6', label: '용도지역/지구 (도시계획)' },
     greenbelt: { typename: 'lt_c_ud801', color: '#ef4444', label: '개발제한구역(그린벨트)' },
-    landscape: { typename: 'lt_c_uq121', color: '#f97316', label: '경관지구' },
-    slope:     { typename: 'lt_c_up401', color: '#22c55e', label: '급경사지역' },
+    natural:   { typename: 'lt_c_uf801', color: '#f97316', label: '자연공원구역' },
     forest:    { typename: 'lt_c_uf211', color: '#059669', label: '산림보호구역' },
     habitat:   { typename: 'lt_c_em011', color: '#7c3aed', label: '생태자연도 1등급' },
     wetland:   { typename: 'lt_c_wkmstrm', color: '#0891b2', label: '하천/습지보호구역' },
     cultural:  { typename: 'lt_c_uh111', color: '#dc2626', label: '문화재보호구역' },
-    military:  { typename: 'lt_c_um111', color: '#991b1b', label: '군사시설보호구역' }
+    baekdu:    { typename: 'lt_c_uq153', color: '#991b1b', label: '백두대간보호지역' },
+    bird:      { typename: 'lt_c_em012', color: '#f59e0b', label: '조류보호구역' }
   }
 };
 
+// Get API key from environment or localStorage fallback
+const VWORLD_API_KEY = window.VWORLD_API_KEY || localStorage.getItem('vworld-key') || '';
+const VWORLD_DOMAIN = window.VWORLD_DOMAIN || 'wind.rkswork.com';
+
 const state = {
-  key: '',
-  domain: '',
+  key: VWORLD_API_KEY,
+  domain: VWORLD_DOMAIN,
   fetched: {}, // layerKey -> boolean
   capabilities: null, // cached capabilities text
   availableTypenames: null // Set of available typenames parsed from capabilities
@@ -619,8 +623,7 @@ async function fetchAndShowLayer(layerKey, aoi) {
 $('btn-zoom').addEventListener('click', () => fitToAoi());
 
 $('btn-fetch').addEventListener('click', async () => {
-  state.key = $('key').value.trim();
-  if (!state.key) return alert('VWorld Key를 입력해주세요.');
+  if (!state.key) return alert('VWorld API Key가 설정되지 않았습니다. 환경변수를 확인해주세요.');
   const aoi = getAoiFeature();
   if (!aoi) return alert('AOI 폴리곤을 먼저 그려주세요.');
   ensureAoiLayer();
@@ -651,40 +654,7 @@ $('btn-clear').addEventListener('click', () => {
   });
 });
 
-// Save key handler
-function saveKey() {
-  state.key = $('key').value.trim();
-  state.domain = ($('domain')?.value || '').trim();
-  try { localStorage.setItem('vworld-key', state.key); } catch (_) {}
-  try { if (state.domain) localStorage.setItem('vworld-domain', state.domain); } catch (_) {}
-  alert('VWorld Key가 저장되었습니다.');
-}
-
-const saveBtn = $('btn-save-key');
-if (saveBtn) saveBtn.addEventListener('click', saveKey);
-
-const keyInput = $('key');
-if (keyInput) {
-  // Load saved key
-  try {
-    const saved = localStorage.getItem('vworld-key');
-    if (saved) keyInput.value = saved;
-  } catch (_) {}
-  // Enter to save
-  keyInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveKey();
-  });
-}
-
-// Load saved domain
-const domainInput = $('domain');
-if (domainInput) {
-  try {
-    const saved = localStorage.getItem('vworld-domain');
-    if (saved) domainInput.value = saved;
-    else if (!domainInput.value) domainInput.value = 'wind.rkswork.com';
-  } catch (_) {}
-}
+// API key is now loaded from environment/config
 
 // Toggle listeners: show/hide, and fetch on-demand when turning ON if data not fetched yet
 Object.keys(CONFIG.layers).forEach((k) => {
@@ -698,8 +668,7 @@ Object.keys(CONFIG.layers).forEach((k) => {
         setLayerVisibility(k, true);
       } else {
         // On-demand fetch when toggled on
-        state.key = $('key').value.trim();
-        if (!state.key) return alert('VWorld Key를 입력해주세요.');
+        if (!state.key) return alert('VWorld API Key가 설정되지 않았습니다. 환경변수를 확인해주세요.');
         const aoi = getAoiFeature();
         if (!aoi) return alert('AOI 폴리곤을 먼저 그려주세요.');
         ensureAoiLayer();
@@ -790,8 +759,8 @@ async function ensureCapabilities() {
   const url = new URL('https://api.vworld.kr/req/wfs');
   url.search = new URLSearchParams({
     service: 'WFS', request: 'GetCapabilities', version: '1.1.0',
-    key: state.key || $('key').value.trim(),
-    domain: location.hostname
+    key: state.key,
+    domain: state.domain
   }).toString();
   let text = '';
   try {
@@ -836,52 +805,7 @@ async function fetchWithRetry(input, init, retries = 2, delayMs = 600) {
   return fetch(input, init);
 }
 
-// --- Test helpers & button ---
-function makeSmallAoiAroundCenter() {
-  const c = map.getCenter();
-  const dx = 0.02, dy = 0.02; // ~small box (~2km) depending on latitude
-  const bbox = [c.lng - dx, c.lat - dy, c.lng + dx, c.lat + dy];
-  return turf.bboxPolygon(bbox);
-}
-
-async function runSmallTest() {
-  // Ensure key/domain
-  state.key = $('key').value.trim();
-  state.domain = ($('domain')?.value || '').trim();
-  if (!state.key) return alert('VWorld Key를 입력해주세요.');
-  if (!state.domain) return alert('VWorld Domain을 입력해주세요.');
-
-  // Build tiny AOI if none
-  let aoi = getAoiFeature();
-  if (!aoi) {
-    aoi = makeSmallAoiAroundCenter();
-    // Put into Draw for visibility
-    try { Draw.deleteAll(); } catch (_) {}
-    try { Draw.add(aoi); } catch (_) {}
-  }
-  ensureAoiLayer();
-
-  const toTest = ['admin', 'urban', 'greenbelt'];
-  setLoading(true);
-  const results = [];
-  try {
-    for (const key of toTest) {
-      try {
-        await fetchAndShowLayer(key, aoi);
-        results.push(`✔ ${key}`);
-      } catch (e) {
-        console.error('Test fetch failed for', key, e);
-        results.push(`✖ ${key}: ${e.message}`);
-      }
-    }
-  } finally {
-    setLoading(false);
-  }
-  alert('테스트 결과\n' + results.join('\n'));
-}
-
-const testBtn = $('btn-test');
-if (testBtn) testBtn.addEventListener('click', runSmallTest);
+// Test functionality removed as requested
 
 // --- JSONP fallback for CORS-restricted responses ---
 function buildJsonpUrl(originalUrl, cbName) {
